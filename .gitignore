@@ -1,3 +1,10 @@
+# folders and build dirs
+gradle/
+.gradle/
+build/
+out/
+.idea/
+
 # Compiled class file
 *.class
 
