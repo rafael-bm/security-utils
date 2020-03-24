@@ -5,9 +5,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.Security;
+import java.util.Objects;
 import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openpgp.PGPCompressedData;
 import org.bouncycastle.openpgp.PGPEncryptedDataList;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPLiteralData;
@@ -32,7 +35,7 @@ import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import uk.co.mulecode.pgp.exception.PGPDecryptException;
 
-
+@Slf4j
 public class PGPDecryptSign {
 
   private InputStream publicVerifierKey;
@@ -81,18 +84,33 @@ public class PGPDecryptSign {
       InputStream clearStream = cryptedData.getDataStream(new BcPublicKeyDataDecryptorFactory(getPGPPrivateKey(encP.getKeyID())));
 
       PGPObjectFactory plainFact = new PGPObjectFactory(clearStream, new JcaKeyFingerprintCalculator());
-      PGPOnePassSignatureList onePassSignatureList = (PGPOnePassSignatureList) plainFact.nextObject();
-      PGPLiteralData literalData = (PGPLiteralData) plainFact.nextObject();
-      decryptedContent = literalData.getInputStream();
 
-      PGPSignatureList signatureList = (PGPSignatureList) plainFact.nextObject();
-      PGPOnePassSignature ops = onePassSignatureList.get(0);
-      PGPPublicKey key = getPGPPublicKeyRingCollection().getPublicKey(ops.getKeyID());
-      ops.init(new JcaPGPContentVerifierBuilderProvider().setProvider("BC"), key);
-      ops.update(((ByteArrayInputStream) decryptedContent).readAllBytes());
+      Object message = plainFact.nextObject();
 
-      if (!ops.verify(signatureList.get(0))) {
-        throw new PGPDecryptException("Failed to verify message signature. Message authenticity cannot be thrusted.");
+      if (message instanceof PGPCompressedData) {
+        log.info("message is PGPCompressedData");
+        PGPCompressedData compressedData = (PGPCompressedData) message;
+        plainFact = new PGPObjectFactory(compressedData.getDataStream(), new JcaKeyFingerprintCalculator());
+        message = plainFact.nextObject();
+      }
+
+      if (message instanceof PGPLiteralData) {
+        log.info("message is PGPLiteralData");
+        PGPLiteralData literalData = (PGPLiteralData) message;
+        decryptedContent = literalData.getInputStream();
+      }
+
+      if(Objects.nonNull(publicVerifierKey)) {
+        PGPOnePassSignatureList onePassSignatureList = (PGPOnePassSignatureList) plainFact.nextObject();
+        PGPSignatureList signatureList = (PGPSignatureList) plainFact.nextObject();
+        PGPOnePassSignature ops = onePassSignatureList.get(0);
+        PGPPublicKey key = getPGPPublicKeyRingCollection().getPublicKey(ops.getKeyID());
+        ops.init(new JcaPGPContentVerifierBuilderProvider().setProvider("BC"), key);
+        ops.update(((ByteArrayInputStream) decryptedContent).readAllBytes());
+
+        if (!ops.verify(signatureList.get(0))) {
+          throw new PGPDecryptException("Failed to verify message signature. Message authenticity cannot be thrusted.");
+        }
       }
 
       return this;

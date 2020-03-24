@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import org.apache.commons.io.IOUtils;
-import org.junit.Ignore;
 import org.junit.Test;
 import uk.co.mulecode.pgp.exception.PGPDecryptException;
 
@@ -82,7 +81,6 @@ public class PGPEncryptTest {
         .getDecryptContentAsString();
   }
 
-  @Ignore
   @Test
   public void validKeyPairAndSigned_shouldEncryptAndDecryptContent() throws Exception {
 
@@ -95,9 +93,9 @@ public class PGPEncryptTest {
     var encryptedStream = PGPEncrypt.builder()
         .publicKey(publicKey)
         .rawData(givenStringContentStream())
-        .isSigning(true)
-        .privateSignKey(privateSignKey)
-        .privateSignPassPhrase(TESTKEY_PASSPHRASE.toCharArray())
+//        .isSigning(true)
+//        .privateSignKey(privateSignKey)
+//        .privateSignPassPhrase(TESTKEY_PASSPHRASE.toCharArray())
         .build()
         .encrypt()
         .getEncryptedContentAsInputStream();
@@ -106,11 +104,12 @@ public class PGPEncryptTest {
         .privateKey(privateKey)
         .passPhrase(TESTKEY_PASSPHRASE.toCharArray())
         .encryptedData(encryptedStream)
-        .publicVerifierKey(publicSignVerifierKey)
+//        .publicVerifierKey(publicSignVerifierKey)
         .build()
         .decrypt()
         .getDecryptContentAsString();
 
+    System.out.println(">>>>>> "+ decryptedValue);
     assertThat(decryptedValue).isEqualTo(givenStringContent());
   }
 

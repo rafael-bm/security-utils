@@ -19,6 +19,9 @@ dependencies {
     implementation("commons-io:commons-io:2.6")
     implementation("org.bouncycastle:bcpg-jdk15on:1.64")
 
+    implementation("org.slf4j:slf4j-api:1.7.30")
+
+    testImplementation("org.slf4j:slf4j-simple:1.7.30")
     testImplementation("org.assertj:assertj-core:3.15.0")
     testImplementation("junit:junit:4.12")
 }
