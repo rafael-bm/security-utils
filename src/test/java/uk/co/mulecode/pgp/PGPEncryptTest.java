@@ -93,9 +93,9 @@ public class PGPEncryptTest {
     var encryptedStream = PGPEncrypt.builder()
         .publicKey(publicKey)
         .rawData(givenStringContentStream())
-//        .isSigning(true)
-//        .privateSignKey(privateSignKey)
-//        .privateSignPassPhrase(TESTKEY_PASSPHRASE.toCharArray())
+        .isSigning(true)
+        .privateSignKey(privateSignKey)
+        .privateSignPassPhrase(TESTKEY_PASSPHRASE.toCharArray())
         .build()
         .encrypt()
         .getEncryptedContentAsInputStream();
@@ -104,7 +104,7 @@ public class PGPEncryptTest {
         .privateKey(privateKey)
         .passPhrase(TESTKEY_PASSPHRASE.toCharArray())
         .encryptedData(encryptedStream)
-//        .publicVerifierKey(publicSignVerifierKey)
+        .publicVerifierKey(publicSignVerifierKey)
         .build()
         .decrypt()
         .getDecryptContentAsString();
