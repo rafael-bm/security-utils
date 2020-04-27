@@ -96,11 +96,11 @@ public class PGPEncrypt {
       PGPSignatureGenerator sigGenerator = null;
       if (isSigning) {
         PGPSecretKey secretKey = findSecretKey(privateSignKey);
-        PGPPrivateKey privateKey = secretKey
-            .extractPrivateKey(
-                new BcPBESecretKeyDecryptorBuilder(new BcPGPDigestCalculatorProvider())
-                    .build(this.privateSignPassPhrase)
-            );
+        PGPPrivateKey privateKey = secretKey.extractPrivateKey(
+            new BcPBESecretKeyDecryptorBuilder(
+                new BcPGPDigestCalculatorProvider()
+            ).build(this.privateSignPassPhrase)
+        );
 
         sigGenerator = new PGPSignatureGenerator(
             new BcPGPContentSignerBuilder(privateKey.getPublicKeyPacket().getAlgorithm(),

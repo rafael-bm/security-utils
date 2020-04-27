@@ -100,17 +100,26 @@ public class PGPEncryptTest {
         .encrypt()
         .getEncryptedContentAsInputStream();
 
-    var decryptedValue = PGPDecryptSign.builder()
+    var valid = PGPDecryptSign.builder()
         .privateKey(privateKey)
         .passPhrase(TESTKEY_PASSPHRASE.toCharArray())
         .encryptedData(encryptedStream)
         .publicVerifierKey(publicSignVerifierKey)
         .build()
-        .decrypt()
-        .getDecryptContentAsString();
+        .verify();
+    System.out.println(">>>>>> "+ valid);
 
-    System.out.println(">>>>>> "+ decryptedValue);
-    assertThat(decryptedValue).isEqualTo(givenStringContent());
+//    var decryptedValue = PGPDecryptSign.builder()
+//        .privateKey(privateKey)
+//        .passPhrase(TESTKEY_PASSPHRASE.toCharArray())
+//        .encryptedData(encryptedStream)
+//        .publicVerifierKey(publicSignVerifierKey)
+//        .build()
+//        .decrypt()
+//        .getDecryptContentAsString();
+//
+//    System.out.println(">>>>>> "+ decryptedValue);
+//    assertThat(decryptedValue).isEqualTo(givenStringContent());
   }
 
   private InputStream givenPrivateKey() {

@@ -1,10 +1,12 @@
 package uk.co.mulecode.pgp;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.Security;
-import java.util.Objects;
+import java.util.Iterator;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
@@ -17,18 +19,23 @@ import org.bouncycastle.openpgp.PGPObjectFactory;
 import org.bouncycastle.openpgp.PGPOnePassSignature;
 import org.bouncycastle.openpgp.PGPOnePassSignatureList;
 import org.bouncycastle.openpgp.PGPPrivateKey;
+import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyEncryptedData;
 import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
 import org.bouncycastle.openpgp.PGPSecretKey;
 import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
+import org.bouncycastle.openpgp.PGPSignature;
+import org.bouncycastle.openpgp.PGPSignatureList;
 import org.bouncycastle.openpgp.PGPUtil;
 import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
+import org.bouncycastle.openpgp.jcajce.JcaPGPPublicKeyRingCollection;
 import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder;
 import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider;
 import org.bouncycastle.openpgp.operator.bc.BcPublicKeyDataDecryptorFactory;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import uk.co.mulecode.pgp.exception.PGPDecryptException;
 
 @Slf4j
@@ -67,14 +74,71 @@ public class PGPDecryptSign {
     }
   }
 
-  public PGPDecryptSign decrypt() {
+  public PGPDecryptSign decrypt() throws Exception {
+
+    InputStream decoderStream = PGPUtil.getDecoderStream(encryptedData);
+    PGPObjectFactory pgpFact = new JcaPGPObjectFactory(decoderStream);
+
+    PGPEncryptedDataList encryptedDataList;
+    Object message = pgpFact.nextObject();
+
+//    if (message instanceof PGPCompressedData) {
+//      log.info("message is PGPCompressedData");
+//      PGPCompressedData compressedData = (PGPCompressedData) message;
+//      pgpFact = new JcaPGPObjectFactory(compressedData.getDataStream());
+//      message = pgpFact.nextObject();
+//      log.info("message is PGPCompressedData - next: {}", message.getClass());
+//    }
+
+    if (message instanceof PGPEncryptedDataList) {
+      log.info("message is PGPEncryptedDataList");
+      encryptedDataList = (PGPEncryptedDataList) message;
+      decryptedContent = getDecryptionStream(encryptedDataList);
+      decryptedContent = getDecryptedData(decryptedContent);
+      message = pgpFact.nextObject();
+    }
+
+    if (message == null) {
+      log.info("is null");
+      return this;
+    }
+
+//    PGPOnePassSignatureList p1 = (PGPOnePassSignatureList) pgpFact.nextObject();
+//    PGPOnePassSignature ops = p1.get(0);
+//
+//    PGPLiteralData p2 = (PGPLiteralData) pgpFact.nextObject();
+//    InputStream dIn = p2.getInputStream();
+//
+//    int ch;
+//    PGPPublicKeyRingCollection pgpRing = new JcaPGPPublicKeyRingCollection(PGPUtil.getDecoderStream(publicVerifierKey));
+//    PGPPublicKey key = pgpRing.getPublicKey(ops.getKeyID());
+//
+//    ByteArrayOutputStream out = new ByteArrayOutputStream();
+//
+//    ops.init(new JcaPGPContentVerifierBuilderProvider().setProvider("BC"), key);
+//    while ((ch = dIn.read()) >= 0) {
+//      ops.update((byte) ch);
+//      out.write(ch);
+//    }
+//    out.close();
+//
+//    PGPSignatureList p3 = (PGPSignatureList) pgpFact.nextObject();
+//    if (ops.verify(p3.get(0))) {
+//      System.out.println("signature verified.");
+//    } else {
+//      System.out.println("signature verification failed.");
+//    }
+    return this;
+  }
+
+  public PGPDecryptSign decrypt2() {
     try {
       InputStream decoderStream = PGPUtil.getDecoderStream(encryptedData);
       JcaPGPObjectFactory objectFactory = new JcaPGPObjectFactory(decoderStream);
       PGPEncryptedDataList cryptedDataList = getDataList(objectFactory);
 
       PGPPublicKeyEncryptedData encP = (PGPPublicKeyEncryptedData) cryptedDataList.get(0);
-      log.info("cryptedDataList {}",cryptedDataList.size());
+      log.info("cryptedDataList {}", cryptedDataList.size());
 
       InputStream clearStream = encP.getDataStream(new BcPublicKeyDataDecryptorFactory(getPGPPrivateKey(encP.getKeyID())));
 
@@ -89,33 +153,11 @@ public class PGPDecryptSign {
         message = plainFact.nextObject();
       }
 
-      PGPOnePassSignature onePassSignature = null;
-      if (message instanceof PGPOnePassSignatureList) {
-        Objects.requireNonNull(publicVerifierKey);
-        log.info("message is PGPOnePassSignatureList");
-        PGPOnePassSignatureList onePassSignatureList = (PGPOnePassSignatureList) message;
-        onePassSignature = onePassSignatureList.get(0);
-        message = plainFact.nextObject();
-      }
-
       if (message instanceof PGPLiteralData) {
         log.info("message is PGPLiteralData");
         PGPLiteralData literalData = (PGPLiteralData) message;
         decryptedContent = literalData.getInputStream();
       }
-
-
-//        PGPSignatureList aa = plainFact.nextObject();
-//
-//        PGPSignatureList signatureList = (PGPSignatureList) plainFact.nextObject();
-//
-//        PGPPublicKey key = getPGPPublicKeyRingCollection().getPublicKey(onePassSignature.getKeyID());
-//        onePassSignature.init(new JcaPGPContentVerifierBuilderProvider().setProvider("BC"), key);
-//        onePassSignature.update(((ByteArrayInputStream) decryptedContent).readAllBytes());
-//
-//        if (!onePassSignature.verify(signatureList.get(0))) {
-//          throw new PGPDecryptException("Failed to verify message signature. Message authenticity cannot be thrusted.");
-//        }
 
       return this;
     } catch (Exception e) {
@@ -186,5 +228,110 @@ public class PGPDecryptSign {
     return (PGPEncryptedDataList) objectFactory.nextObject();
   }
 
+  private InputStream getDecryptionStream(PGPEncryptedDataList encDataList)
+      throws IOException, PGPException {
 
+    Iterator encDataIterator = encDataList.getEncryptedDataObjects();
+
+    PGPPrivateKey privateKey = null;
+    PGPPublicKeyEncryptedData encP = null;
+    while (privateKey == null && encDataIterator.hasNext()) {
+      encP = (PGPPublicKeyEncryptedData) encDataIterator.next();
+      PGPSecretKey secretKey = readSecretKeyFromCol(this.privateKey, encP.getKeyID());
+      privateKey = secretKey
+          .extractPrivateKey(new BcPBESecretKeyDecryptorBuilder(new BcPGPDigestCalculatorProvider()).build(this.passPhrase));
+    }
+
+    if (privateKey == null) {
+      throw new IllegalArgumentException("Secret key for message not found.");
+    }
+
+    return encP.getDataStream(new BcPublicKeyDataDecryptorFactory(privateKey));
+  }
+
+  private InputStream getDecryptedData(InputStream decryptionStream) throws PGPException, IOException {
+    JcaPGPObjectFactory plainFact = new JcaPGPObjectFactory(decryptionStream);
+    JcaPGPObjectFactory pgpFact = null;
+    Object message = plainFact.nextObject();
+
+    if (message instanceof PGPCompressedData) {
+      log.info("message is PGPCompressedData");
+      PGPCompressedData cData = (PGPCompressedData) message;
+      pgpFact = new JcaPGPObjectFactory(cData.getDataStream());
+      message = pgpFact.nextObject();
+    }
+
+    if (message instanceof PGPLiteralData) {
+      log.info("message is PGPLiteralData");
+      PGPLiteralData literalData = (PGPLiteralData) message;
+      return literalData.getInputStream();
+    }
+
+    if (message instanceof PGPOnePassSignatureList) {
+      log.info("message is PGPOnePassSignatureList");
+      PGPOnePassSignatureList p1 = (PGPOnePassSignatureList) message;
+      PGPOnePassSignature ops = p1.get(0);
+      log.info("> retrieved PGPOnePassSignature");
+
+      PGPLiteralData p2 = (PGPLiteralData) pgpFact.nextObject();
+      InputStream dIn = p2.getInputStream();
+
+      int ch;
+      PGPPublicKeyRingCollection pgpRing = new JcaPGPPublicKeyRingCollection(PGPUtil.getDecoderStream(publicVerifierKey));
+      PGPPublicKey key = pgpRing.getPublicKey(ops.getKeyID());
+
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      ops.init(new JcaPGPContentVerifierBuilderProvider().setProvider("BC"), key);
+      while ((ch = dIn.read()) >= 0) {
+        ops.update((byte) ch);
+        out.write(ch);
+      }
+      out.close();
+
+//      PGPSignatureList p3 = (PGPSignatureList) plainFact.nextObject();
+//      PGPSignatureList p3 = (PGPSignatureList) pgpFact.nextObject();
+//      if (ops.verify(p3.get(0))) {
+//        System.out.println("signature verified.");
+//      } else {
+//        System.out.println("signature verification failed.");
+//      }
+
+      return new ByteArrayInputStream(out.toByteArray());
+    }
+
+    throw new PGPException("message is not a simple encrypted file - type unknown.");
+  }
+
+//  private Object unwrapCompressedData(Object message) throws PGPException, IOException {
+//    if (message instanceof PGPCompressedData) {
+//      PGPCompressedData cData = (PGPCompressedData) message;
+//      JcaPGPObjectFactory pgpFact = new JcaPGPObjectFactory(cData.getDataStream());
+//      return pgpFact.nextObject();
+//    }
+//    return message;
+//  }
+
+  public boolean verify() {
+    try {
+      publicVerifierKey = PGPUtil.getDecoderStream(publicVerifierKey);
+      JcaPGPObjectFactory pgpFact = new JcaPGPObjectFactory(encryptedData);
+      PGPSignature sig = ((PGPSignatureList) pgpFact.nextObject()).get(0);
+      PGPPublicKeyRingCollection pgpRing = new JcaPGPPublicKeyRingCollection(PGPUtil.getDecoderStream(publicVerifierKey));
+      PGPPublicKey key = pgpRing.getPublicKey(sig.getKeyID());
+
+      sig.init(new JcaPGPContentVerifierBuilderProvider().setProvider("BC"), key);
+      byte[] buff = new byte[1024];
+      int read = 0;
+      while ((read = encryptedData.read(buff)) != -1) {
+        sig.update(buff, 0, read);
+      }
+      encryptedData.close();
+      return sig.verify();
+    }
+    catch (Exception ex) {
+      log.error("failed to verify signature, {}", ex.getMessage(), ex);
+      return false;
+    }
+  }
 }
